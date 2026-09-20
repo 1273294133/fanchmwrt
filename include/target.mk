@@ -77,6 +77,9 @@ DEFAULT_PACKAGES.router:=\
 	luci-app-fwx-system \
 	luci-app-fwx-mac-blacklist \
 	luci-app-fwx-record-whitelist \
+	luci-app-fwx-firewall \
+	luci-app-fwx-wireless \
+	luci-app-fwx-traffic-stat \
 	luci-app-ddns \
 	luci-app-upnp \
 	luci-app-autoreboot \
