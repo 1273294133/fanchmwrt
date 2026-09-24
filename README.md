@@ -14,6 +14,30 @@ FanchmWrt 是一款基于 OpenWrt 深度定制的开源企业级路由器系统�
 - 产物包括 `squashfs-rootfs.img.gz`（虚拟机可直接使用的 squashfs 根文件系统镜像）与 `squashfs-combined-efi.img.gz`（含 EFI 引导的整盘固件），发布到仓库 Release：`fanchmwrt-armv8-vm-latest`；
 - 构建目标为 OpenWrt `armsr/armv8`（Generic EFI Boot），编译完成后即可用 QEMU 等虚拟机直接启动。
 
+#### ARMv8 虚拟机使用（QEMU）
+
+两个产物的用途与启动方式：
+
+- **`*squashfs-combined-efi.img.gz`**：整盘固件（含 UEFI 引导、内核与根文件系统），可直接作为 armv8 虚拟机的磁盘镜像启动，日常虚拟机使用推荐它。
+- **`*squashfs-rootfs.img.gz`**：squashfs 根文件系统镜像，不含引导与内核，适合作为根分区挂载，或自行加载内核后作为 root 使用。
+
+以 QEMU（aarch64）启动 combined-efi 整盘镜像为例（先解压 `.img.gz`）：
+
+```bash
+# 1. 解压镜像
+gzip -dk openwrt-armsr-armv8-generic-squashfs-combined-efi.img.gz
+
+# 2. 使用 UEFI 固件（AAVMF/QEMU_EFI）启动
+qemu-system-aarch64 \
+  -M virt -cpu cortex-a57 -m 1024 -smp 2 \
+  -bios /usr/share/AAVMF/AAVMF_CODE.fd \
+  -drive file=openwrt-armsr-armv8-generic-squashfs-combined-efi.img,format=raw,if=virtio \
+  -netdev user,id=lan -device virtio-net-pci,netdev=lan \
+  -nographic
+```
+
+> 提示：不同发行版 UEFI 固件路径不同（Ubuntu/Debian 为 `/usr/share/AAVMF/AAVMF_CODE.fd`，也可用 QEMU 自带的 `QEMU_EFI.fd`）。rootfs 镜像不含引导，如需使用可先挂载查看，或与内核、引导组装成可启动镜像。
+
 此外，本仓库还内置以下路由器特性：
 
 - **应用识别与过滤（OAF）**：基于内置应用特征库（`feature.bin`）对流量做应用协议识别与管控。
