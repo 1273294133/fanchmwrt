@@ -1,0 +1,123 @@
+# FanchmWrt — Build ARMv8 VM + EFI firmware
+#
+# Produces and publishes:
+#   - *squashfs-rootfs.img.gz     : armv8 (aarch64) 虚拟机可直接使用的根文件系统镜像
+#   - *squashfs-combined-efi.img.gz: 包含 EFI 引导的整盘镜像（combined EFI firmware）
+#
+# 目标: target/linux/armsr/armv8 (Generic EFI Boot), 基于 OpenWrt armsr 目标。
+#
+# 触发方式:
+#   1) 手动触发: GitHub -> Actions -> "Build ARMv8 VM + EFI firmware" -> Run workflow
+#   2) 推送 tag: git push origin build-<任意后缀> (例如 build-1)
+# 每次运行会把构建产物发布到同仓库的 release: fanchmwrt-armv8-vm-latest
+
+name: Build ARMv8 VM + EFI firmware
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'build-*'
+  repository_dispatch:
+    types: [build-armv8-vm]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-armv8-vm
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses-dev zlib1g-dev \
+            gawk gcc-multilib g++-multilib flex git gettext g++ subversion \
+            libssl-dev python3 python3-setuptools rsync swig unzip file time \
+            gzip
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Update feeds
+        run: ./scripts/feeds update -a
+
+      - name: Install feeds
+        run: ./scripts/feeds install -a
+
+      - name: Configure target (ARMv8 VM + EFI, gzip images)
+        run: |
+          make defconfig
+          cat >> .config <<'EOF'
+          CONFIG_TARGET_armsr=y
+          CONFIG_TARGET_armsr_armv8=y
+          CONFIG_TARGET_armsr_armv8_DEVICE_generic=y
+          CONFIG_TARGET_IMAGES_GZIP=y
+          CONFIG_DEVEL=y
+          EOF
+          # 归一化配置
+          make defconfig
+
+      - name: Build firmware
+        run: make -j$(nproc) BUILD_LOG=1
+
+      - name: Stage artifacts
+        run: |
+          OUT=bin/targets/armsr/armv8
+          mkdir -p artifact
+          # armv8 虚拟机可用的 squashfs rootfs
+          cp -f $OUT/*squashfs-rootfs.img.gz  artifact/ 2>/dev/null || true
+          # combined EFI 固件 (squashfs 变体优先)
+          cp -f $OUT/*squashfs-combined-efi.img.gz artifact/ 2>/dev/null || true
+          cp -f $OUT/*combined-efi.img.gz      artifact/ 2>/dev/null || true
+          cp -f $OUT/sha256sums                artifact/ 2>/dev/null || true
+          cp -f $OUT/*.buildinfo               artifact/ 2>/dev/null || true
+          echo "===== artifacts ====="
+          ls -lh artifact/
+          echo "===== available in bin ====="
+          ls -1 $OUT/ 2>/dev/null || true
+
+      - name: Fail if no artifacts produced
+        run: |
+          if ! ls artifact/*.img.gz >/dev/null 2>&1; then
+            echo "No .img.gz artifacts were produced; build likely failed." >&2
+            exit 1
+          fi
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: armv8-vm-efi
+          path: artifact/
+
+      - name: "Publish GitHub release (rolling: fanchmwrt-armv8-vm-latest)"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=fanchmwrt-armv8-vm-latest
+          DATE=$(date -u +%Y-%m-%d\ %H:%M\ UTC)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes --cleanup-tag
+          fi
+          printf '%s\n' \
+            'FanchmWrt — ARMv8 (aarch64) 虚拟机 + EFI 固件' \
+            '' \
+            '## 包含文件' \
+            '- *squashfs-rootfs.img.gz*  : armv8 虚拟机可直接使用的 squashfs 根文件系统镜像' \
+            '- *squashfs-combined-efi.img.gz* : 含 EFI 引导的整盘镜像 (combined EFI firmware)' \
+            '- *sha256sums* : 校验值' \
+            '' \
+            '## 使用' \
+            '- QEMU/VM: 用 squashfs-rootfs.img.gz 作为磁盘镜像，或用 combined-efi.img.gz 直接 EFI 引导。' \
+            '- 源码: https://github.com/1273294133/fanchmwrt (构建目标 armsr/armv8, Generic EFI Boot)' \
+            > /tmp/notes.md
+          gh release create "$TAG" artifact/* \
+            --title "FanchmWrt ARMv8 VM + EFI — $DATE" \
+            --notes-file /tmp/notes.md \
+            --repo "${{ github.repository }}"
