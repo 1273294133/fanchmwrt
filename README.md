@@ -4,7 +4,11 @@
 
 FanchmWrt 是一款基于 OpenWrt 深度定制的开源企业级路由器系统，内置防火墙与网络管理能力。
 
-**本仓库可用于生成可运行于虚拟机的固件**：
+<div align="center">
+<h3 style="color:#1f6feb; font-size:1.6em; border-bottom:3px solid #1f6feb; padding-bottom:6px; margin-bottom:6px;">
+本仓库可用于生成可运行于虚拟机的固件
+</h3>
+</div>
 
 - 通过内置的 GitHub Actions 工作流 **“Build ARMv8 VM + EFI firmware”**（手动触发，或推送 `build-*` 前缀的 tag），即可编译并自动发布 ARMv8（aarch64）虚拟机可运行的固件；
 - 产物包括 `squashfs-rootfs.img.gz`（虚拟机可直接使用的 squashfs 根文件系统镜像）与 `squashfs-combined-efi.img.gz`（含 EFI 引导的整盘固件），发布到仓库 Release：`fanchmwrt-armv8-vm-latest`；
