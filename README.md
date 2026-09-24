@@ -6,19 +6,19 @@ FanchmWrt 是一款基于 OpenWrt 深度定制的开源企业级路由器系统�
 
 <div align="center">
 <h3 style="color:#1f6feb; font-size:1.6em; border-bottom:3px solid #1f6feb; padding-bottom:6px; margin-bottom:6px;">
-本仓库可用于生成可运行于虚拟机的固件
+本仓库可用于生成可运行于 ARMv8 虚拟机的固件
 </h3>
 </div>
 
 - 通过内置的 GitHub Actions 工作流 **“Build ARMv8 VM + EFI firmware”**（手动触发，或推送 `build-*` 前缀的 tag），即可编译并自动发布 ARMv8（aarch64）虚拟机可运行的固件；
-- 产物包括 `squashfs-rootfs.img.gz`（虚拟机可直接使用的 squashfs 根文件系统镜像）与 `squashfs-combined-efi.img.gz`（含 EFI 引导的整盘固件），发布到仓库 Release：`fanchmwrt-armv8-vm-latest`；
-- 构建目标为 OpenWrt `armsr/armv8`（Generic EFI Boot），编译完成后即可用 QEMU 等虚拟机直接启动。
+- 产物包括 `squashfs-rootfs.img.gz`（ARMv8 虚拟机可直接使用的 squashfs 根文件系统镜像）与 `squashfs-combined-efi.img.gz`（含 EFI 引导的整盘固件），发布到仓库 Release：`fanchmwrt-armv8-vm-latest`；
+- 构建目标为 OpenWrt `armsr/armv8`（Generic EFI Boot），编译完成后即可用 QEMU 等 ARMv8 虚拟机直接启动。
 
 #### ARMv8 虚拟机使用（QEMU）
 
 两个产物的用途与启动方式：
 
-- **`*squashfs-combined-efi.img.gz`**：整盘固件（含 UEFI 引导、内核与根文件系统），可直接作为 armv8 虚拟机的磁盘镜像启动，日常虚拟机使用推荐它。
+- **`*squashfs-combined-efi.img.gz`**：整盘固件（含 UEFI 引导、内核与根文件系统），可直接作为 armv8 虚拟机的磁盘镜像启动，日常 ARMv8 虚拟机使用推荐它。
 - **`*squashfs-rootfs.img.gz`**：squashfs 根文件系统镜像，不含引导与内核，适合作为根分区挂载，或自行加载内核后作为 root 使用。
 
 以 QEMU（aarch64）启动 combined-efi 整盘镜像为例（先解压 `.img.gz`）：
