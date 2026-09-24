@@ -2,7 +2,15 @@
 
 ## 仓库说明（中文）
 
-FanchmWrt 是一款基于 OpenWrt 深度定制的开源企业级路由器系统，内置防火墙与网络管理能力。本仓库是源码仓库，核心功能包括：
+FanchmWrt 是一款基于 OpenWrt 深度定制的开源企业级路由器系统，内置防火墙与网络管理能力。本仓库是源码仓库。
+
+**本仓库可用于生成可运行于虚拟机的固件**：
+
+- 通过内置的 GitHub Actions 工作流 **“Build ARMv8 VM + EFI firmware”**（手动触发，或推送 `build-*` 前缀的 tag），即可编译并自动发布 ARMv8（aarch64）虚拟机可运行的固件；
+- 产物包括 `squashfs-rootfs.img.gz`（虚拟机可直接使用的 squashfs 根文件系统镜像）与 `squashfs-combined-efi.img.gz`（含 EFI 引导的整盘固件），发布到仓库 Release：`fanchmwrt-armv8-vm-latest`；
+- 构建目标为 OpenWrt `armsr/armv8`（Generic EFI Boot），编译完成后即可用 QEMU 等虚拟机直接启动。
+
+此外，本仓库还内置以下路由器特性：
 
 - **应用识别与过滤（OAF）**：基于内置应用特征库（`feature.bin`）对流量做应用协议识别与管控。
 - **MAC 地址过滤**：基于 MAC 的接入控制与过滤规则。
@@ -11,7 +19,7 @@ FanchmWrt 是一款基于 OpenWrt 深度定制的开源企业级路由器系统�
 - **本地存储与远程上报**：SQLite 本地持久化，MQTT（mosquitto）数据上报。
 - **OpenWrt 生态集成**：与 ubus / rpcd / LuCI 深度对接，含定制 LuCI 主题（`luci-theme-fanchmwrt`）与界面增强补丁（`feeds_patches/luci`）。
 
-官方固件下载见 [www.fanchmwrt.com](https://www.fanchmwrt.com)；也可使用仓库内 GitHub Actions 工作流 **“Build ARMv8 VM + EFI firmware”** 自行编译 ARMv8 虚拟机 / EFI 固件（产物为 `squashfs-rootfs.img.gz` 与 `squashfs-combined-efi.img.gz`）。
+官方固件下载见 [www.fanchmwrt.com](https://www.fanchmwrt.com)。
 
 ---
 
