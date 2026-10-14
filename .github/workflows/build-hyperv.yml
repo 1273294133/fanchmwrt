@@ -1,0 +1,130 @@
+# FanchmWrt — Build Hyper-V (x86/64) firmware
+#
+# 为 Microsoft Hyper-V 虚拟机构建可直接挂载使用的镜像（VHDX）。
+#   - *combined-efi.vhdx : EFI 引导，适用于 Hyper-V 第 2 代（Gen2）虚拟机
+#   - *combined.vhdx     : BIOS 引导，适用于 Hyper-V 第 1 代（Gen1）虚拟机
+# 附带 *squashfs-combined-efi.img.gz 与 *squashfs-rootfs.img.gz 作为备用。
+#
+# 目标: target/linux/x86/64 (generic), 需 CONFIG_VHDX_IMAGES=y。
+#
+# 触发方式:
+#   1) 手动: GitHub -> Actions -> "Build Hyper-V (x86/64) firmware" -> Run workflow
+#   2) 推送 tag: git push origin hyperv-<任意后缀>
+# 每次运行把产物发布到同仓库 release: fanchmwrt-hyperv-x86-64-latest
+
+name: Build Hyper-V (x86/64) firmware
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'hyperv-*'
+  repository_dispatch:
+    types: [build-hyperv]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-hyperv
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses-dev zlib1g-dev \
+            gawk gcc-multilib g++-multilib flex git gettext g++ subversion \
+            libssl-dev python3 python3-setuptools rsync swig unzip file time \
+            gzip dosfstools mtools
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Update feeds
+        run: ./scripts/feeds update -a
+
+      - name: Install feeds
+        run: ./scripts/feeds install -a
+
+      - name: Configure target (x86/64 + Hyper-V VHDX)
+        run: |
+          make defconfig
+          cat >> .config <<'EOF'
+          CONFIG_TARGET_x86=y
+          CONFIG_TARGET_x86_64=y
+          CONFIG_TARGET_x86_64_DEVICE_generic=y
+          CONFIG_TARGET_IMAGES_GZIP=y
+          CONFIG_GRUB_IMAGES=y
+          CONFIG_GRUB_EFI_IMAGES=y
+          CONFIG_VHDX_IMAGES=y
+          CONFIG_DEVEL=y
+          EOF
+          # 归一化配置
+          make defconfig
+
+      - name: Build firmware
+        run: make -j$(nproc) BUILD_LOG=1
+
+      - name: Stage artifacts
+        run: |
+          OUT=bin/targets/x86/64
+          mkdir -p artifact
+          # Hyper-V 直接可用的 VHDX（EFI=Gen2 / BIOS=Gen1）
+          cp -f $OUT/*combined-efi.vhdx  artifact/ 2>/dev/null || true
+          cp -f $OUT/*combined.vhdx       artifact/ 2>/dev/null || true
+          # 备用 img.gz
+          cp -f $OUT/*squashfs-combined-efi.img.gz artifact/ 2>/dev/null || true
+          cp -f $OUT/*squashfs-rootfs.img.gz       artifact/ 2>/dev/null || true
+          cp -f $OUT/sha256sums           artifact/ 2>/dev/null || true
+          cp -f $OUT/*.buildinfo          artifact/ 2>/dev/null || true
+          echo "===== artifacts ====="
+          ls -lh artifact/
+          echo "===== available in bin ====="
+          ls -1 $OUT/ 2>/dev/null || true
+
+      - name: Fail if no VHDX produced
+        run: |
+          if ! ls artifact/*.vhdx >/dev/null 2>&1; then
+            echo "No .vhdx artifacts were produced; build likely failed." >&2
+            exit 1
+          fi
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hyperv-x86-64
+          path: artifact/
+
+      - name: "Publish GitHub release (rolling: fanchmwrt-hyperv-x86-64-latest)"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=fanchmwrt-hyperv-x86-64-latest
+          DATE=$(date -u +%Y-%m-%d\ %H:%M\ UTC)
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes --cleanup-tag
+          fi
+          printf '%s\n' \
+            'FanchmWrt — Hyper-V (x86/64) 虚拟机直接可用镜像' \
+            '' \
+            '## 包含文件' \
+            '- *combined-efi.vhdx : EFI 引导，适用于 Hyper-V 第 2 代（Gen2）虚拟机' \
+            '- *combined.vhdx     : BIOS 引导，适用于 Hyper-V 第 1 代（Gen1）虚拟机' \
+            '- *squashfs-combined-efi.img.gz / *squashfs-rootfs.img.gz : 备用镜像' \
+            '- *sha256sums : 校验值' \
+            '' \
+            '## 使用' \
+            '- Hyper-V 新建虚拟机 -> 选择对应代次（Gen1 用 combined.vhdx，Gen2 用 combined-efi.vhdx）' \
+            '- 硬盘选择“使用现有虚拟硬盘”，指向下载的 .vhdx 文件，开机即可。' \
+            '- 源码: https://github.com/1273294133/fanchmwrt (构建目标 x86/64, generic)' \
+            > /tmp/notes.md
+          gh release create "$TAG" artifact/* \
+            --title "FanchmWrt Hyper-V (x86/64) — $DATE" \
+            --notes-file /tmp/notes.md \
+            --repo "${{ github.repository }}"
